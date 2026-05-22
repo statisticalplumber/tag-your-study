@@ -1,22 +1,35 @@
-import { GraduationCap, Map, HelpCircle, Layers, Settings, ChevronLeft, ChevronRight, Lock, Cpu, Server, Sparkles } from 'lucide-react';
+import { GraduationCap, Map, Layers, Settings, ChevronLeft, ChevronRight, Lock, Cpu, Shield, User, LogOut, Eye, EyeOff } from 'lucide-react';
 import React, { useState } from 'react';
-import { ProviderSettings } from '../types';
+import { ProviderSettings, UserRole } from '../types';
 
 interface NavigationSidebarProps {
   currentModuleId: string;
   providerSettings: ProviderSettings;
   onChangeProviderSettings: (settings: ProviderSettings) => void;
+  userRole: UserRole | null;
+  onLogout: () => void;
 }
+
+const GEMINI_MODELS = [
+  { id: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash' },
+  { id: 'gemini-2.0-flash-lite', label: 'Gemini 2.0 Flash Lite' },
+  { id: 'gemini-2.5-flash-preview-05-20', label: 'Gemini 2.5 Flash Preview' },
+  { id: 'gemini-2.5-pro-preview-05-06', label: 'Gemini 2.5 Pro Preview' },
+  { id: 'gemini-1.5-flash', label: 'Gemini 1.5 Flash' },
+  { id: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro' },
+];
 
 export const NavigationSidebar = ({
   currentModuleId,
   providerSettings,
   onChangeProviderSettings,
+  userRole,
+  onLogout,
 }: NavigationSidebarProps) => {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showApiKey, setShowApiKey] = useState(false);
 
-  // Future education sub-apps that will integrate as individual nav panels.
   const subModules = [
     {
       id: 'precision-pdf',
@@ -40,6 +53,15 @@ export const NavigationSidebar = ({
       isUnlocked: false,
     },
   ];
+
+  const isAdmin = userRole === 'admin';
+
+  const activeModelLabel =
+    providerSettings.provider === 'local'
+      ? providerSettings.localModel
+      : isAdmin
+      ? 'gemini-3.5-flash'
+      : (GEMINI_MODELS.find((m) => m.id === providerSettings.userGeminiModel)?.label ?? providerSettings.userGeminiModel);
 
   return (
     <div
@@ -70,7 +92,6 @@ export const NavigationSidebar = ({
             </div>
           )}
 
-          {/* Toggle Action */}
           <button
             onClick={() => setIsCollapsed(!isCollapsed)}
             className="absolute -right-3 top-5 w-6 h-6 rounded-full border border-zinc-200 bg-white shadow-xs flex items-center justify-center text-zinc-500 hover:text-zinc-900 hover:bg-zinc-50 cursor-pointer z-4s transition-transform"
@@ -152,8 +173,8 @@ export const NavigationSidebar = ({
                 id="toggle-engine-settings-btn"
                 title="Configure LLM Endpoint"
               >
-                <Settings size={12} className={showSettings ? "animate-spin" : ""} />
-                <span>{showSettings ? "Close" : "Setup"}</span>
+                <Settings size={12} className={showSettings ? 'animate-spin' : ''} />
+                <span>{showSettings ? 'Close' : 'Setup'}</span>
               </button>
             </div>
 
@@ -170,7 +191,7 @@ export const NavigationSidebar = ({
                     {providerSettings.provider === 'local' ? 'Local Llama/LM Studio' : 'Gemini AI (Cloud)'}
                   </span>
                   <span className="text-[9px] text-zinc-500 font-mono truncate leading-none mt-0.5">
-                    {providerSettings.provider === 'local' ? providerSettings.localModel : 'gemini-3.5-flash'}
+                    {activeModelLabel}
                   </span>
                 </div>
               </div>
@@ -181,7 +202,7 @@ export const NavigationSidebar = ({
 
             {showSettings && (
               <div className="flex flex-col gap-2.5 mt-0.5 text-left bg-white border border-zinc-200 rounded p-2.5 shadow-sm">
-                {/* Segment switch */}
+                {/* Provider toggle */}
                 <div className="grid grid-cols-2 gap-0.5 bg-zinc-100 p-0.5 rounded border border-zinc-200/60">
                   <button
                     onClick={() => onChangeProviderSettings({ ...providerSettings, provider: 'gemini' })}
@@ -205,18 +226,81 @@ export const NavigationSidebar = ({
                   </button>
                 </div>
 
+                {/* User role Gemini settings */}
+                {providerSettings.provider === 'gemini' && !isAdmin && (
+                  <div className="flex flex-col gap-2">
+                    {/* API Key input */}
+                    <div>
+                      <label className="text-[8px] font-mono text-zinc-400 uppercase tracking-wider block mb-0.5">
+                        Your Gemini API Key
+                      </label>
+                      <div className="relative">
+                        <input
+                          type={showApiKey ? 'text' : 'password'}
+                          value={providerSettings.userGeminiApiKey}
+                          onChange={(e) => onChangeProviderSettings({
+                            ...providerSettings,
+                            userGeminiApiKey: e.target.value,
+                          })}
+                          placeholder="AIza..."
+                          className="w-full text-[10px] px-1.5 pr-6 py-0.5 bg-zinc-50 border border-zinc-200 focus:bg-white focus:outline-none focus:ring-1 focus:ring-zinc-900/30 rounded font-mono"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowApiKey((v) => !v)}
+                          className="absolute right-1 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-700 cursor-pointer"
+                        >
+                          {showApiKey ? <EyeOff size={10} /> : <Eye size={10} />}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Model selector */}
+                    <div>
+                      <label className="text-[8px] font-mono text-zinc-400 uppercase tracking-wider block mb-0.5">
+                        Gemini Model
+                      </label>
+                      <select
+                        value={providerSettings.userGeminiModel}
+                        onChange={(e) => onChangeProviderSettings({
+                          ...providerSettings,
+                          userGeminiModel: e.target.value,
+                        })}
+                        className="w-full text-[10px] px-1.5 py-0.5 bg-zinc-50 border border-zinc-200 focus:bg-white focus:outline-none focus:ring-1 focus:ring-zinc-900/30 rounded font-mono cursor-pointer"
+                      >
+                        {GEMINI_MODELS.map((m) => (
+                          <option key={m.id} value={m.id}>{m.label}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="p-1.5 bg-zinc-50 text-[9px] text-zinc-600 leading-normal rounded border border-zinc-100">
+                      Your key is sent to the server per-request only — it is never stored server-side.
+                    </div>
+                  </div>
+                )}
+
+                {/* Admin Gemini: no key needed */}
+                {providerSettings.provider === 'gemini' && isAdmin && (
+                  <div className="p-1.5 bg-amber-50 text-[9px] text-amber-700 leading-normal rounded border border-amber-100 flex items-center gap-1.5">
+                    <Shield size={10} className="shrink-0" />
+                    Admin uses the server-configured API key.
+                  </div>
+                )}
+
+                {/* Local provider settings */}
                 {providerSettings.provider === 'local' && (
                   <div className="flex flex-col gap-2">
-                    {/* Presets */}
                     <div>
                       <span className="text-[8px] font-mono text-zinc-400 block mb-1 uppercase tracking-wider">Presets</span>
                       <div className="grid grid-cols-2 gap-1">
                         <button
                           type="button"
                           onClick={() => onChangeProviderSettings({
+                            ...providerSettings,
                             provider: 'local',
                             localBaseUrl: 'http://localhost:1234/v1',
-                            localModel: 'lmstudio'
+                            localModel: 'lmstudio',
                           })}
                           className="px-1.5 py-0.5 text-[8px] font-semibold text-zinc-700 bg-zinc-50 hover:bg-zinc-100 border border-zinc-200 rounded text-center transition-all cursor-pointer"
                         >
@@ -225,9 +309,10 @@ export const NavigationSidebar = ({
                         <button
                           type="button"
                           onClick={() => onChangeProviderSettings({
+                            ...providerSettings,
                             provider: 'local',
                             localBaseUrl: 'http://localhost:8080/v1',
-                            localModel: 'local-model'
+                            localModel: 'local-model',
                           })}
                           className="px-1.5 py-0.5 text-[8px] font-semibold text-zinc-700 bg-zinc-50 hover:bg-zinc-100 border border-zinc-200 rounded text-center transition-all cursor-pointer"
                         >
@@ -236,7 +321,6 @@ export const NavigationSidebar = ({
                       </div>
                     </div>
 
-                    {/* Base URL */}
                     <div>
                       <label className="text-[8px] font-mono text-zinc-400 uppercase tracking-wider block mb-0.5">
                         Base URL
@@ -246,7 +330,7 @@ export const NavigationSidebar = ({
                         value={providerSettings.localBaseUrl}
                         onChange={(e) => onChangeProviderSettings({
                           ...providerSettings,
-                          localBaseUrl: e.target.value
+                          localBaseUrl: e.target.value,
                         })}
                         placeholder="http://localhost:1234/v1"
                         className="w-full text-[10px] px-1.5 py-0.5 bg-zinc-50 border border-zinc-200 focus:bg-white focus:outline-none focus:ring-1 focus:ring-cyan-500 rounded font-mono"
@@ -254,7 +338,6 @@ export const NavigationSidebar = ({
                       />
                     </div>
 
-                    {/* Model Name */}
                     <div>
                       <label className="text-[8px] font-mono text-zinc-400 uppercase tracking-wider block mb-0.5">
                         Model / Alias
@@ -264,7 +347,7 @@ export const NavigationSidebar = ({
                         value={providerSettings.localModel}
                         onChange={(e) => onChangeProviderSettings({
                           ...providerSettings,
-                          localModel: e.target.value
+                          localModel: e.target.value,
                         })}
                         placeholder="lmstudio"
                         className="w-full text-[10px] px-1.5 py-0.5 bg-zinc-50 border border-zinc-200 focus:bg-white focus:outline-none focus:ring-1 focus:ring-cyan-500 rounded font-mono"
@@ -301,22 +384,45 @@ export const NavigationSidebar = ({
         )}
       </div>
 
-      {/* Footer System Status details */}
+      {/* Footer: Active user + logout */}
       <div className="p-3 border-t border-zinc-200/80">
         {!isCollapsed ? (
           <div className="flex flex-col gap-1 px-1">
             <div className="flex items-center justify-between text-[10px] font-mono text-zinc-400">
               <span>ACTIVE USER</span>
-              <span className="text-zinc-600 uppercase">STUDENT</span>
+              <div className="flex items-center gap-1">
+                {isAdmin ? (
+                  <Shield size={9} className="text-amber-500" />
+                ) : (
+                  <User size={9} className="text-zinc-500" />
+                )}
+                <span className={`uppercase font-bold ${isAdmin ? 'text-amber-600' : 'text-zinc-600'}`}>
+                  {userRole ?? 'GUEST'}
+                </span>
+              </div>
             </div>
             <div className="text-[10px] font-mono text-zinc-500 mt-1 flex items-center gap-1">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
               <span>GMUNK Light theme loaded</span>
             </div>
+            <button
+              onClick={onLogout}
+              className="mt-1.5 w-full flex items-center justify-center gap-1.5 py-1 text-[9px] font-mono font-semibold text-zinc-500 hover:text-rose-600 hover:bg-rose-50 border border-zinc-200 hover:border-rose-200 rounded transition-all cursor-pointer"
+            >
+              <LogOut size={10} />
+              SIGN OUT
+            </button>
           </div>
         ) : (
-          <div className="flex justify-center p-1">
+          <div className="flex flex-col items-center gap-2 p-1">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+            <button
+              onClick={onLogout}
+              className="p-1 text-zinc-400 hover:text-rose-500 hover:bg-rose-50 rounded transition-all cursor-pointer"
+              title="Sign out"
+            >
+              <LogOut size={12} />
+            </button>
           </div>
         )}
       </div>

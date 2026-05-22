@@ -33,10 +33,20 @@ export interface TagSession {
 
 export type ModelProvider = 'gemini' | 'local';
 
+export type UserRole = 'admin' | 'user';
+
+export interface AuthState {
+  isAuthenticated: boolean;
+  role: UserRole | null;
+  token: string | null;
+}
+
 export interface ProviderSettings {
   provider: ModelProvider;
   localBaseUrl: string;
   localModel: string;
+  userGeminiApiKey: string;
+  userGeminiModel: string;
 }
 
 export interface HistoryItem {
