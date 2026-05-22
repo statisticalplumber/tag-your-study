@@ -1,6 +1,6 @@
 import {
   Plus, RotateCcw, Trash2, Tag, Layers, BookOpen,
-  ChevronLeft, ChevronRight, ChevronDown, MessageSquare, FileText, StickyNote,
+  ChevronLeft, ChevronRight, ChevronDown, MessageSquare, StickyNote,
 } from 'lucide-react';
 import { TagSession, HistoryItem } from '../types';
 import React, { useState } from 'react';
@@ -10,6 +10,7 @@ interface TagExplorerProps {
   activeSessionId: string;
   onSelectSession: (id: string) => void;
   onResetSession: (id: string) => void;
+  onDeleteSession: (id: string) => void;
   onCreateSession: (name: string, colorClass: string, themeColor: string) => void;
   onUpdateTagNotes: (sessionId: string, notes: string) => void;
   historyList: HistoryItem[];
@@ -34,16 +35,18 @@ interface TagRowProps {
   isActive: boolean;
   isExpanded: boolean;
   notesDraft: Record<string, string>;
+  canDelete: boolean;
   onToggleExpand: (id: string) => void;
   onSelect: (id: string) => void;
   onReset: (id: string) => void;
+  onDelete: (id: string) => void;
   onNotesChange: (id: string, val: string) => void;
   onNotesSave: (id: string) => void;
 }
 
 const TagRow = ({
-  sess, isActive, isExpanded, notesDraft,
-  onToggleExpand, onSelect, onReset, onNotesChange, onNotesSave,
+  sess, isActive, isExpanded, notesDraft, canDelete,
+  onToggleExpand, onSelect, onReset, onDelete, onNotesChange, onNotesSave,
 }: TagRowProps) => {
   const regionCount = sess.regions.length;
   const chatCount = sess.chatHistory.length;
@@ -87,6 +90,17 @@ const TagRow = ({
         >
           <RotateCcw size={10} />
         </button>
+
+        {/* Delete — hidden on the last remaining tag */}
+        {canDelete && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onDelete(sess.id); }}
+            title="Delete tag"
+            className="p-1 rounded text-zinc-300 hover:text-rose-600 hover:bg-rose-50 cursor-pointer shrink-0 transition-colors"
+          >
+            <Trash2 size={10} />
+          </button>
+        )}
 
         <ChevronDown
           size={12}
@@ -162,6 +176,7 @@ export const TagExplorer = ({
   activeSessionId,
   onSelectSession,
   onResetSession,
+  onDeleteSession,
   onCreateSession,
   onUpdateTagNotes,
   historyList,
@@ -407,9 +422,11 @@ export const TagExplorer = ({
                       isActive={sess.id === activeSessionId}
                       isExpanded={expandedIds.has(sess.id)}
                       notesDraft={notesDraft}
+                      canDelete={sessions.length > 1}
                       onToggleExpand={toggleExpand}
                       onSelect={onSelectSession}
                       onReset={onResetSession}
+                      onDelete={onDeleteSession}
                       onNotesChange={handleNotesChange}
                       onNotesSave={handleNotesSave}
                     />

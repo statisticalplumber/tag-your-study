@@ -278,6 +278,18 @@ export default function App() {
     setIsChatOpen(true);
   };
 
+  // Delete a tag session entirely; switch active to first remaining
+  const handleDeleteSession = (id: string) => {
+    setSessions((prev) => {
+      const remaining = prev.filter((s) => s.id !== id);
+      if (remaining.length === 0) return prev; // never delete the last tag
+      if (activeSessionId === id) {
+        setActiveSessionId(remaining[0].id);
+      }
+      return remaining;
+    });
+  };
+
   // Reset a tag's active bounding boxes & dialogues
   const handleResetSession = (id: string) => {
     setSessions((oldSessions) =>
@@ -489,6 +501,7 @@ Provide rich high-quality Markdown responses with clean formatting.`;
         activeSessionId={activeSessionId}
         onSelectSession={handleSelectSession}
         onResetSession={handleResetSession}
+        onDeleteSession={handleDeleteSession}
         onCreateSession={handleCreateSession}
         onUpdateTagNotes={handleUpdateTagNotes}
         historyList={historyList}
