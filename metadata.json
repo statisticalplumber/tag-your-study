@@ -1,0 +1,6 @@
+{
+  "name": "Furian - Education",
+  "description": "Furian - Education represents a state-of-the-art interactive study platform designed for modern students. Effortlessly upload textbooks, lecture notes, or syllabus PDFs, select and tag specific formula regions, diagrams, or concept definitions, and interact with a contextual AI tutor. It supports selective smart text extraction and visually composites multi-region crops of scanned documents.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
