@@ -11,6 +11,7 @@ export interface SelectedRegion {
   rect: Rectangle;
   text?: string;
   image?: string; // base64 representation of this crop
+  selectionMode?: 'text' | 'image'; // mode used when region was drawn
 }
 
 export interface ChatMessage {

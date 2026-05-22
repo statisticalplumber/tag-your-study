@@ -1,4 +1,4 @@
-import { Plus, RotateCcw, MessageSquare, Trash2, Tag, Layers, CheckSquare, BookOpen } from 'lucide-react';
+import { Plus, RotateCcw, MessageSquare, Trash2, Tag, Layers, BookOpen, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react';
 import { TagSession, HistoryItem } from '../types';
 import React, { useState } from 'react';
 
@@ -17,7 +17,6 @@ interface TagExplorerProps {
   pdfFile: File | { name: string; base64: string } | null;
 }
 
-// Gorgeous palette of cyber-themed clean colors for custom tags (GMUNK Light theme)
 const COLOR_PRESETS = [
   { name: 'Cyan Spark', class: 'border-[#06b6d4] bg-[#ecfeff] text-[#083344]', hex: '#06b6d4' },
   { name: 'Neon Lime', class: 'border-[#84cc16] bg-[#f7fee7] text-[#1a2e05]', hex: '#84cc16' },
@@ -40,14 +39,24 @@ export const TagExplorer = ({
   onRefreshHistory,
   pdfFile,
 }: TagExplorerProps) => {
+  const [isPanelOpen, setIsPanelOpen] = useState(true);
   const [activeTab, setActiveTab] = useState<'tags' | 'history'>('tags');
   const [newTagName, setNewTagName] = useState('');
   const [selectedColorIdx, setSelectedColorIdx] = useState(0);
   const [isCreating, setIsCreating] = useState(false);
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
 
-  // Snapshot Saving state definitions
   const [saveSnapshotName, setSaveSnapshotName] = useState('');
   const [saveFeedback, setSaveFeedback] = useState('');
+
+  const toggleExpand = (id: string) => {
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
 
   const handleCreate = (e: React.FormEvent) => {
     e.preventDefault();
@@ -62,19 +71,37 @@ export const TagExplorer = ({
     e.preventDefault();
     const cleanName = saveSnapshotName.trim();
     if (!cleanName) return;
-
     await onSaveCurrentSession(cleanName);
     setSaveSnapshotName('');
     setSaveFeedback('Milestone registered!');
-    setTimeout(() => {
-      setSaveFeedback('');
-    }, 3000);
+    setTimeout(() => setSaveFeedback(''), 3000);
   };
 
+  // Collapsed strip shown when panel is toggled off
+  if (!isPanelOpen) {
+    return (
+      <div className="w-10 h-screen bg-white border-r border-zinc-200/80 flex flex-col items-center py-3 gap-4 z-20 shrink-0">
+        <button
+          onClick={() => setIsPanelOpen(true)}
+          title="Open Desk Explorer"
+          className="w-7 h-7 rounded border border-zinc-200 bg-zinc-50 hover:bg-zinc-100 flex items-center justify-center text-zinc-600 hover:text-zinc-900 cursor-pointer transition-colors shrink-0"
+        >
+          <ChevronRight size={14} />
+        </button>
+        <span
+          className="text-[9px] font-mono font-bold text-zinc-400 uppercase tracking-widest select-none mt-2"
+          style={{ writingMode: 'vertical-rl', textOrientation: 'mixed' }}
+        >
+          Desk Explorer
+        </span>
+      </div>
+    );
+  }
+
   return (
-    <div className="w-80 h-screen bg-white border-r border-zinc-200/80 flex flex-col justify-between select-none z-20">
-      {/* Session Title Header */}
+    <div className="w-80 h-screen bg-white border-r border-zinc-200/80 flex flex-col justify-between select-none z-20 shrink-0">
       <div className="flex flex-col flex-1 min-h-0">
+        {/* Header */}
         <div className="h-16 px-5 border-b border-zinc-200/80 flex items-center justify-between bg-[#fafafa] shrink-0">
           <div className="flex items-center gap-2">
             <Tag size={16} className="text-zinc-600" />
@@ -82,31 +109,41 @@ export const TagExplorer = ({
               Furian Study Desk Explorer
             </h2>
           </div>
-          {activeTab === 'tags' && (
+          <div className="flex items-center gap-1.5">
+            {activeTab === 'tags' && (
+              <button
+                onClick={() => setIsCreating(!isCreating)}
+                className="w-7 h-7 rounded border border-zinc-200 bg-white hover:bg-zinc-50 flex items-center justify-center text-zinc-600 hover:text-zinc-900 cursor-pointer transition-colors"
+                title="Create Custom Study Tag"
+              >
+                <Plus size={14} />
+              </button>
+            )}
+            {activeTab === 'history' && (
+              <button
+                onClick={async () => {
+                  setSaveFeedback('Refreshing desk...');
+                  await onRefreshHistory();
+                  setTimeout(() => setSaveFeedback(''), 1500);
+                }}
+                className="w-7 h-7 rounded border border-zinc-200 bg-white hover:bg-zinc-50 flex items-center justify-center text-zinc-600 hover:text-zinc-900 cursor-pointer transition-colors"
+                title="Sync & Reload Desk Snapshots"
+              >
+                <RotateCcw size={13} />
+              </button>
+            )}
+            {/* Collapse panel button */}
             <button
-              onClick={() => setIsCreating(!isCreating)}
-              className="w-7 h-7 rounded border border-zinc-200 bg-white hover:bg-zinc-50 flex items-center justify-center text-zinc-600 hover:text-zinc-900 cursor-pointer transition-colors"
-              title="Create Custom Study Tag"
+              onClick={() => setIsPanelOpen(false)}
+              title="Hide Desk Explorer"
+              className="w-7 h-7 rounded border border-zinc-200 bg-white hover:bg-zinc-50 flex items-center justify-center text-zinc-500 hover:text-zinc-900 cursor-pointer transition-colors"
             >
-              <Plus size={14} />
+              <ChevronLeft size={14} />
             </button>
-          )}
-          {activeTab === 'history' && (
-            <button
-              onClick={async () => {
-                setSaveFeedback('Refreshing desk...');
-                await onRefreshHistory();
-                setTimeout(() => setSaveFeedback(''), 1500);
-              }}
-              className="w-7 h-7 rounded border border-zinc-200 bg-white hover:bg-zinc-50 flex items-center justify-center text-zinc-600 hover:text-zinc-900 cursor-pointer transition-colors"
-              title="Sync & Reload Desk Snapshots"
-            >
-              <RotateCcw size={13} />
-            </button>
-          )}
+          </div>
         </div>
 
-        {/* Dynamic switcher tabs */}
+        {/* Tabs */}
         <div className="flex border-b border-zinc-220 shrink-0">
           <button
             onClick={() => setActiveTab('tags')}
@@ -135,10 +172,10 @@ export const TagExplorer = ({
           </button>
         </div>
 
-        {/* Tags Tab Content */}
+        {/* Tags Tab */}
         {activeTab === 'tags' && (
           <div className="flex flex-col flex-1 overflow-y-auto min-h-0">
-            {/* Create tag Form */}
+            {/* Create tag form */}
             {isCreating && (
               <form onSubmit={handleCreate} className="p-4 bg-zinc-50 border-b border-zinc-200 animate-slide-down shrink-0">
                 <div className="flex flex-col gap-3">
@@ -154,7 +191,6 @@ export const TagExplorer = ({
                     className="w-full bg-white border border-zinc-200 p-2 text-xs rounded focus:outline-hidden focus:border-zinc-500 font-sans"
                     autoFocus
                   />
-
                   <div className="flex flex-col gap-1.5">
                     <span className="text-[10px] font-mono text-zinc-400 font-bold uppercase">
                       Aesthetic Color Tone
@@ -165,7 +201,7 @@ export const TagExplorer = ({
                           key={p.name}
                           type="button"
                           onClick={() => setSelectedColorIdx(idx)}
-                          className={`w-5 h-5 rounded-full border flex items-center justify-center transition-transform hover:scale-105 cursor-pointer`}
+                          className="w-5 h-5 rounded-full border flex items-center justify-center transition-transform hover:scale-105 cursor-pointer"
                           style={{ backgroundColor: p.hex, borderColor: selectedColorIdx === idx ? '#18181b' : 'transparent' }}
                           title={p.name}
                         >
@@ -176,7 +212,6 @@ export const TagExplorer = ({
                       ))}
                     </div>
                   </div>
-
                   <div className="flex items-center justify-end gap-2 mt-2">
                     <button
                       type="button"
@@ -196,34 +231,40 @@ export const TagExplorer = ({
               </form>
             )}
 
-            {/* Tag List */}
+            {/* Tag accordion list */}
             <div className="flex flex-col divide-y divide-zinc-100 overflow-y-auto">
               {sessions.map((sess) => {
                 const isActive = sess.id === activeSessionId;
+                const isExpanded = expandedIds.has(sess.id);
                 const regionCount = sess.regions.length;
                 const lastMessage = sess.chatHistory[sess.chatHistory.length - 1];
 
                 return (
                   <div
                     key={sess.id}
-                    onClick={() => onSelectSession(sess.id)}
-                    className={`p-4 transition-all duration-150 cursor-pointer relative group flex flex-col ${
-                      isActive
-                        ? 'bg-zinc-50/70 border-l-[3.5px]'
-                        : 'bg-white hover:bg-zinc-50/30'
+                    className={`flex flex-col transition-all duration-150 relative ${
+                      isActive ? 'border-l-[3.5px]' : 'border-l-[3.5px] border-l-transparent'
                     }`}
                     style={{ borderLeftColor: isActive ? sess.themeColor : 'transparent' }}
                   >
-                    {/* Tag name and capsule */}
-                    <div className="flex items-start justify-between gap-2">
-                      <div className={`border rounded-sm px-2 py-0.5 text-[10px] font-mono font-bold leading-normal flex items-center gap-1.5 ${sess.color}`}>
-                        <Tag size={8} style={{ color: sess.themeColor }} />
-                        {sess.name}
+                    {/* Accordion header — always visible */}
+                    <div
+                      className={`px-4 py-3 flex items-center justify-between gap-2 cursor-pointer transition-colors ${
+                        isActive ? 'bg-zinc-50/70' : 'bg-white hover:bg-zinc-50/40'
+                      }`}
+                      onClick={() => {
+                        onSelectSession(sess.id);
+                        toggleExpand(sess.id);
+                      }}
+                    >
+                      <div className={`border rounded-sm px-2 py-0.5 text-[10px] font-mono font-bold leading-normal flex items-center gap-1.5 min-w-0 truncate ${sess.color}`}>
+                        <Tag size={8} style={{ color: sess.themeColor }} className="shrink-0" />
+                        <span className="truncate">{sess.name}</span>
                       </div>
 
-                      <div className="flex items-center gap-1 opacity-80 shrink-0">
+                      <div className="flex items-center gap-1.5 shrink-0">
                         <span className="text-[10px] bg-zinc-100 text-zinc-600 px-1.5 py-0.5 rounded font-mono">
-                          {regionCount === 1 ? '1 region' : `${regionCount} regions`}
+                          {regionCount}
                         </span>
                         <button
                           onClick={(e) => {
@@ -231,47 +272,60 @@ export const TagExplorer = ({
                             onResetSession(sess.id);
                           }}
                           title="Reset Tag Regions & Chats"
-                          className="p-1 rounded text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100 hover:scale-105 cursor-pointer shrink-0"
+                          className="p-1 rounded text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100 cursor-pointer shrink-0"
                         >
-                          <RotateCcw size={11} />
+                          <RotateCcw size={10} />
                         </button>
+                        <ChevronDown
+                          size={12}
+                          className={`text-zinc-400 transition-transform duration-200 shrink-0 ${isExpanded ? 'rotate-180' : ''}`}
+                        />
                       </div>
                     </div>
 
-                    {/* Drawn regions mini overview list */}
-                    {regionCount > 0 && (
-                      <div className="mt-3 flex flex-wrap gap-1.5">
-                        {sess.regions.map((reg, rIdx) => (
-                          <span
-                            key={reg.id}
-                            className="text-[9px] font-mono text-zinc-500 bg-zinc-50/50 border border-zinc-200/60 px-1 py-0.5 rounded flex items-center gap-1"
-                            title={`Selection Region ${rIdx + 1} on Page ${reg.pageNumber}`}
-                          >
-                            <Layers size={8} />
-                            P.{reg.pageNumber}: #{rIdx + 1}
-                          </span>
-                        ))}
+                    {/* Accordion body — shown when expanded */}
+                    {isExpanded && (
+                      <div className="px-4 pb-3 flex flex-col gap-2 bg-zinc-50/50 border-t border-zinc-100">
+                        {/* Region mini list */}
+                        {regionCount > 0 ? (
+                          <div className="mt-2 flex flex-wrap gap-1.5">
+                            {sess.regions.map((reg, rIdx) => (
+                              <span
+                                key={reg.id}
+                                className="text-[9px] font-mono text-zinc-500 bg-white border border-zinc-200/60 px-1 py-0.5 rounded flex items-center gap-1"
+                                title={`Selection Region ${rIdx + 1} on Page ${reg.pageNumber}`}
+                              >
+                                <Layers size={8} />
+                                P.{reg.pageNumber}: #{rIdx + 1}
+                              </span>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-[10px] text-zinc-400 italic mt-2">
+                            No regions drawn yet.
+                          </p>
+                        )}
+
+                        {/* Last chat snippet */}
+                        <div className="border-t border-dotted border-zinc-200 pt-2 select-text">
+                          {sess.chatHistory.length > 0 ? (
+                            <div className="flex flex-col gap-1 text-[11px]">
+                              <div className="flex items-center gap-1 text-zinc-400 font-mono text-[9px]">
+                                <MessageSquare size={10} />
+                                <span>RECENT DIALOGUE:</span>
+                              </div>
+                              <div className="text-zinc-500 line-clamp-2 italic leading-tight pl-2 border-l border-zinc-200">
+                                "{lastMessage?.text}"
+                              </div>
+                            </div>
+                          ) : (
+                            <span className="text-[10px] text-zinc-400 italic">
+                              No active dialogues yet.
+                            </span>
+                          )}
+                        </div>
                       </div>
                     )}
-
-                    {/* Message count/Last answer snippet */}
-                    <div className="mt-3 border-t border-dotted border-zinc-200 pt-2 flex flex-col gap-1 select-text">
-                      {sess.chatHistory.length > 0 ? (
-                        <div className="flex flex-col gap-1 text-[11px]">
-                          <div className="flex items-center gap-1 text-zinc-400 font-mono text-[9px]">
-                            <MessageSquare size={10} />
-                            <span>RECENT COMPANION DIALOGUE:</span>
-                          </div>
-                          <div className="text-zinc-500 line-clamp-2 italic leading-tight pl-2 border-l border-zinc-200">
-                            "{lastMessage?.text}"
-                          </div>
-                        </div>
-                      ) : (
-                        <span className="text-[10px] text-zinc-400 italic">
-                          No active dialogues yet. Select this tag, pinpoint material, and request help.
-                        </span>
-                      )}
-                    </div>
                   </div>
                 );
               })}
@@ -279,10 +333,10 @@ export const TagExplorer = ({
           </div>
         )}
 
-        {/* History Tab Content */}
+        {/* History Tab */}
         {activeTab === 'history' && (
           <div className="flex flex-col flex-1 overflow-y-auto min-h-0 divide-y divide-zinc-100">
-            {/* Save Current Session Block */}
+            {/* Save snapshot block */}
             <div className="p-4 bg-zinc-50/70 border-b border-zinc-100 shrink-0">
               <h3 className="text-[10px] font-mono text-zinc-400 font-bold uppercase tracking-wider mb-2">
                 Save Current Desk Snapshot
@@ -310,7 +364,7 @@ export const TagExplorer = ({
               </p>
             </div>
 
-            {/* List historic items */}
+            {/* History list */}
             {historyList.length === 0 ? (
               <div className="p-8 text-center text-zinc-400 font-sans text-xs flex-1 flex flex-col justify-center">
                 <BookOpen size={40} className="mx-auto text-zinc-300 mb-3" />
@@ -356,8 +410,6 @@ export const TagExplorer = ({
                             Page {item.current_page}
                           </span>
                         </div>
-
-                        {/* Delete history record action trigger */}
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
@@ -369,7 +421,6 @@ export const TagExplorer = ({
                           <Trash2 size={12} />
                         </button>
                       </div>
-
                       <div className="flex justify-between items-center mt-3 text-[9px] text-zinc-400 font-mono">
                         <span>{dateStr}</span>
                         {isActive && (
@@ -387,7 +438,7 @@ export const TagExplorer = ({
         )}
       </div>
 
-      {/* Tag summary stats */}
+      {/* Footer stats */}
       <div className="p-4 bg-[#fafafa] border-t border-zinc-100 flex items-center justify-between text-[10px] font-mono text-zinc-400 shrink-0">
         <span>TOTAL SESSIONS: {sessions.length}</span>
         <span>FURIAN HYPERCUBE</span>
@@ -395,4 +446,3 @@ export const TagExplorer = ({
     </div>
   );
 };
-
