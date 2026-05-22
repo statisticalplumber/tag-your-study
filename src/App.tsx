@@ -33,6 +33,8 @@ const DEFAULT_SESSIONS: TagSession[] = [
     chatHistory: [],
     selectionMode: 'text',
     isProcessing: false,
+    isDefault: true,
+    notes: '',
   },
   {
     id: 'formula-tag',
@@ -43,6 +45,8 @@ const DEFAULT_SESSIONS: TagSession[] = [
     chatHistory: [],
     selectionMode: 'text',
     isProcessing: false,
+    isDefault: true,
+    notes: '',
   },
   {
     id: 'diagram-tag',
@@ -51,8 +55,10 @@ const DEFAULT_SESSIONS: TagSession[] = [
     themeColor: '#f59e0b',
     regions: [],
     chatHistory: [],
-    selectionMode: 'image', // default visuals to Image Crop mode, perfect!
+    selectionMode: 'image',
     isProcessing: false,
+    isDefault: true,
+    notes: '',
   },
   {
     id: 'doubts-tag',
@@ -63,6 +69,8 @@ const DEFAULT_SESSIONS: TagSession[] = [
     chatHistory: [],
     selectionMode: 'text',
     isProcessing: false,
+    isDefault: true,
+    notes: '',
   },
 ];
 
@@ -282,6 +290,11 @@ export default function App() {
     );
   };
 
+  // Update quick notes for a tag (persisted via sessions_json on next save)
+  const handleUpdateTagNotes = (sessionId: string, notes: string) => {
+    setSessions((prev) => prev.map((s) => (s.id === sessionId ? { ...s, notes } : s)));
+  };
+
   // Create customized study tags at runtime
   const handleCreateSession = (name: string, colorClass: string, themeHex: string) => {
     const cleanId = `custom-tag-${Date.now()}`;
@@ -477,6 +490,7 @@ Provide rich high-quality Markdown responses with clean formatting.`;
         onSelectSession={handleSelectSession}
         onResetSession={handleResetSession}
         onCreateSession={handleCreateSession}
+        onUpdateTagNotes={handleUpdateTagNotes}
         historyList={historyList}
         activeHistoryId={activeHistoryId}
         onSelectHistory={handleLoadHistory}

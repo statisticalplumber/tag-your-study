@@ -30,6 +30,8 @@ export interface TagSession {
   chatHistory: ChatMessage[];
   selectionMode: 'text' | 'image';
   isProcessing: boolean;
+  isDefault?: boolean; // true for the 4 pre-built tags
+  notes?: string; // quick scratchpad note for this tag (persisted in sessions_json)
 }
 
 export type ModelProvider = 'gemini' | 'local';
