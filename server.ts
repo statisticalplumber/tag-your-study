@@ -1,10 +1,8 @@
 import crypto from 'crypto';
 import express from 'express';
-import path from 'path';
 import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI } from '@google/genai';
 import dotenv from 'dotenv';
-import sqlite3 from 'sqlite3';
 
 // Load environment variables from .env
 dotenv.config();
@@ -15,33 +13,6 @@ const PORT = 3000;
 // Enable JSON body parsed payload handling with matching limit settings
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
-
-// Initialize SQLite Database
-const dbPath = path.join(process.cwd(), 'study.db');
-const db = new sqlite3.Database(dbPath, (err) => {
-  if (err) {
-    console.error('❌ SQLite connection failed:', err);
-  } else {
-    console.log('📂 SQLite database active at:', dbPath);
-    db.run(`
-      CREATE TABLE IF NOT EXISTS study_history (
-        id TEXT PRIMARY KEY,
-        name TEXT NOT NULL,
-        pdf_filename TEXT,
-        pdf_base64 TEXT,
-        current_page INTEGER DEFAULT 1,
-        sessions_json TEXT,
-        created_at TEXT
-      )
-    `, (tableErr) => {
-      if (tableErr) {
-        console.error('❌ Error creating study_history table:', tableErr);
-      } else {
-        console.log('✅ SQLite tables configured successfully.');
-      }
-    });
-  }
-});
 
 // Lazy initialize Gemini API client (admin key from env)
 const apiKey = process.env.GEMINI_API_KEY;
@@ -219,77 +190,9 @@ Provide rich, high-quality Markdown responses with clean formatting, bullet poin
   }
 });
 
-// GET /api/history - Retrieve all saved textbook interactions (metadata list without binary PDF blobs)
-app.get('/api/history', requireAuth, (req, res) => {
-  db.all(
-    'SELECT id, name, pdf_filename, current_page, created_at FROM study_history ORDER BY created_at DESC',
-    [],
-    (err, rows) => {
-      if (err) {
-        console.error('SQLite read error:', err);
-        return res.status(500).json({ error: 'Failed to query student study histories.' });
-      }
-      res.json(rows);
-    }
-  );
-});
-
-// GET /api/history/:id - Retrieve complete history session with full annotations, regions, and pdf binary
-app.get('/api/history/:id', requireAuth, (req, res) => {
-  const { id } = req.params;
-  db.get('SELECT * FROM study_history WHERE id = ?', [id], (err, row) => {
-    if (err) {
-      console.error('SQLite read item error:', err);
-      return res.status(500).json({ error: 'Failed to load study history payload.' });
-    }
-    if (!row) {
-      return res.status(404).json({ error: 'Selected classroom history state not found.' });
-    }
-    res.json(row);
-  });
-});
-
-// POST /api/history - Insert or complete replace a study record inside SQLite
-app.post('/api/history', requireAuth, (req, res) => {
-  const { id, name, pdf_filename, pdf_base64, current_page, sessions } = req.body;
-
-  if (!name || name.trim() === '') {
-    return res.status(400).json({ error: 'Please supply a real nickname or name for the study history entry.' });
-  }
-
-  const cleanId = id || `hist-${Date.now()}`;
-  const sessionsJson = JSON.stringify(sessions || []);
-  const createdAt = new Date().toISOString();
-
-  db.run(
-    `INSERT OR REPLACE INTO study_history (id, name, pdf_filename, pdf_base64, current_page, sessions_json, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    [cleanId, name.trim(), pdf_filename || null, pdf_base64 || null, current_page || 1, sessionsJson, createdAt],
-    function (err) {
-      if (err) {
-        console.error('SQLite insert error:', err);
-        return res.status(500).json({ error: 'Could not write study history record to SQLite database.' });
-      }
-      res.json({ success: true, id: cleanId });
-    }
-  );
-});
-
-// DELETE /api/history/:id - Safely purge interaction state
-app.delete('/api/history/:id', requireAuth, (req, res) => {
-  const { id } = req.params;
-  db.run('DELETE FROM study_history WHERE id = ?', [id], function (err) {
-    if (err) {
-      console.error('SQLite delete error:', err);
-      return res.status(500).json({ error: 'Could not purge study interaction.' });
-    }
-    res.json({ success: true, affectedRows: this.changes });
-  });
-});
-
 // Vercel serverless handler
 export default function handler(req: any, res: any) {
-  return app.handle(req, res);
+  return app(req, res);
 }
 
 // Local development: start Express server directly

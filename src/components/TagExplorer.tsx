@@ -18,7 +18,7 @@ interface TagExplorerProps {
   onSelectHistory: (id: string) => void;
   onDeleteHistory: (id: string) => void;
   onSaveCurrentSession: (name: string) => Promise<void>;
-  onRefreshHistory: () => Promise<void>;
+  onRefreshHistory: () => void;
   pdfFile: File | { name: string; base64: string } | null;
 }
 

@@ -159,18 +159,16 @@ export default function App() {
     return response;
   }, [authState.token, handleLogout]);
 
-  // Load and refresh list of saved histories from SQLite database
-  const fetchHistory = useCallback(async () => {
+  // Load history list from localStorage
+  const fetchHistory = useCallback(() => {
     try {
-      const res = await apiFetch(`/api/history?_t=${Date.now()}`);
-      if (res.ok) {
-        const data = await res.json();
-        setHistoryList(data);
-      }
+      const stored = localStorage.getItem('tys_history');
+      const data: HistoryItem[] = stored ? JSON.parse(stored) : [];
+      setHistoryList(data);
     } catch (err) {
       console.error('Failed to parse history list:', err);
     }
-  }, [apiFetch]);
+  }, []);
 
   useEffect(() => {
     if (authState.isAuthenticated) {
@@ -178,7 +176,7 @@ export default function App() {
     }
   }, [authState.isAuthenticated, fetchHistory]);
 
-  // Save current PDF layout, active tags, selection coords, and companion dialogues to SQLite base
+  // Save current desk state to localStorage
   const handleSaveSession = async (customName: string) => {
     try {
       let pdfBase64: string | null = null;
@@ -193,35 +191,40 @@ export default function App() {
         }
       }
 
-      const payload = {
+      const id = activeHistoryId || `hist-${Date.now()}`;
+      const entry: HistoryItem = {
+        id,
         name: customName,
         pdf_filename: pdfFilename,
         pdf_base64: pdfBase64,
         current_page: currentPage,
-        sessions: sessions,
+        sessions_json: JSON.stringify(sessions),
+        created_at: new Date().toISOString(),
       };
 
-      const res = await apiFetch('/api/history', {
-        method: 'POST',
-        body: JSON.stringify(payload),
-      });
-
-      if (!res.ok) {
-        throw new Error('Save endpoint returned connection rejection.');
+      const stored = localStorage.getItem('tys_history');
+      const existing: HistoryItem[] = stored ? JSON.parse(stored) : [];
+      const idx = existing.findIndex((h) => h.id === id);
+      if (idx >= 0) {
+        existing[idx] = entry;
+      } else {
+        existing.unshift(entry);
       }
-
-      await fetchHistory();
+      localStorage.setItem('tys_history', JSON.stringify(existing));
+      setActiveHistoryId(id);
+      fetchHistory();
     } catch (err) {
-      console.error('Database preservation failed:', err);
+      console.error('Save to localStorage failed:', err);
     }
   };
 
-  // Restore previous classroom milestone layout
-  const handleLoadHistory = async (id: string) => {
+  // Restore previous desk state from localStorage
+  const handleLoadHistory = (id: string) => {
     try {
-      const res = await apiFetch(`/api/history/${id}?_t=${Date.now()}`);
-      if (!res.ok) throw new Error('Failed to retrieve matching history details.');
-      const data = await res.json();
+      const stored = localStorage.getItem('tys_history');
+      const existing: HistoryItem[] = stored ? JSON.parse(stored) : [];
+      const data = existing.find((h) => h.id === id);
+      if (!data) throw new Error('History item not found.');
 
       if (data.pdf_base64) {
         setPdfFile({
@@ -248,16 +251,16 @@ export default function App() {
     }
   };
 
-  // Purge standard milestone
-  const handleDeleteHistory = async (id: string) => {
+  // Purge milestone from localStorage
+  const handleDeleteHistory = (id: string) => {
     try {
-      const res = await apiFetch(`/api/history/${id}`, { method: 'DELETE' });
-      if (res.ok) {
-        if (activeHistoryId === id) {
-          setActiveHistoryId(null);
-        }
-        await fetchHistory();
+      const stored = localStorage.getItem('tys_history');
+      const existing: HistoryItem[] = stored ? JSON.parse(stored) : [];
+      localStorage.setItem('tys_history', JSON.stringify(existing.filter((h) => h.id !== id)));
+      if (activeHistoryId === id) {
+        setActiveHistoryId(null);
       }
+      fetchHistory();
     } catch (err) {
       console.error('Milestone deletion failure:', err);
     }
