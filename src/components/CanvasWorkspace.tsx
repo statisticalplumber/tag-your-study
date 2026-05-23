@@ -317,6 +317,7 @@ export const CanvasWorkspace = ({
       rect: newRect,
       text: extractedText,
       image: croppedImage,
+      selectionMode: activeSession.selectionMode,
     };
 
     onUpdateActiveSession((oldSession) => ({
@@ -559,6 +560,19 @@ export const CanvasWorkspace = ({
                     <div className="flex justify-between items-end w-full">
                       <span className="text-[8px] font-mono text-zinc-500 bg-white/70 px-1 rounded">
                         P.{region.pageNumber} • AREA_0{idx + 1}
+                      </span>
+                      <span
+                        className={`text-[7px] font-mono font-bold px-1 py-0.5 rounded flex items-center gap-0.5 ${
+                          region.selectionMode === 'image'
+                            ? 'bg-amber-100 text-amber-700 border border-amber-300'
+                            : 'bg-sky-100 text-sky-700 border border-sky-300'
+                        }`}
+                      >
+                        {region.selectionMode === 'image' ? (
+                          <><Layers size={6} /> IMG</>
+                        ) : (
+                          <><FileText size={6} /> TXT</>
+                        )}
                       </span>
                     </div>
                   </div>

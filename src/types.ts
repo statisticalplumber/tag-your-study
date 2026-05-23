@@ -11,6 +11,7 @@ export interface SelectedRegion {
   rect: Rectangle;
   text?: string;
   image?: string; // base64 representation of this crop
+  selectionMode?: 'text' | 'image'; // mode used when region was drawn
 }
 
 export interface ChatMessage {
@@ -29,14 +30,26 @@ export interface TagSession {
   chatHistory: ChatMessage[];
   selectionMode: 'text' | 'image';
   isProcessing: boolean;
+  isDefault?: boolean; // true for the 4 pre-built tags
+  notes?: string; // quick scratchpad note for this tag (persisted in sessions_json)
 }
 
 export type ModelProvider = 'gemini' | 'local';
+
+export type UserRole = 'admin' | 'user';
+
+export interface AuthState {
+  isAuthenticated: boolean;
+  role: UserRole | null;
+  token: string | null;
+}
 
 export interface ProviderSettings {
   provider: ModelProvider;
   localBaseUrl: string;
   localModel: string;
+  userGeminiApiKey: string;
+  userGeminiModel: string;
 }
 
 export interface HistoryItem {

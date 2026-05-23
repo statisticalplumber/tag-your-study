@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { NavigationSidebar } from './components/NavigationSidebar';
 import { TagExplorer } from './components/TagExplorer';
 import { CanvasWorkspace } from './components/CanvasWorkspace';
 import { ChatSidebar } from './components/ChatSidebar';
-import { TagSession, ChatMessage, ProviderSettings, HistoryItem } from './types';
+import { LoginPage } from './components/LoginPage';
+import { TagSession, ChatMessage, ProviderSettings, HistoryItem, AuthState, UserRole } from './types';
 import { combineCropsIntoSingleImage } from './utils/pdfHelpers';
 import { usePdfJs } from './hooks/usePdfJs';
 
@@ -32,6 +33,8 @@ const DEFAULT_SESSIONS: TagSession[] = [
     chatHistory: [],
     selectionMode: 'text',
     isProcessing: false,
+    isDefault: true,
+    notes: '',
   },
   {
     id: 'formula-tag',
@@ -42,6 +45,8 @@ const DEFAULT_SESSIONS: TagSession[] = [
     chatHistory: [],
     selectionMode: 'text',
     isProcessing: false,
+    isDefault: true,
+    notes: '',
   },
   {
     id: 'diagram-tag',
@@ -50,8 +55,10 @@ const DEFAULT_SESSIONS: TagSession[] = [
     themeColor: '#f59e0b',
     regions: [],
     chatHistory: [],
-    selectionMode: 'image', // default visuals to Image Crop mode, perfect!
+    selectionMode: 'image',
     isProcessing: false,
+    isDefault: true,
+    notes: '',
   },
   {
     id: 'doubts-tag',
@@ -62,19 +69,47 @@ const DEFAULT_SESSIONS: TagSession[] = [
     chatHistory: [],
     selectionMode: 'text',
     isProcessing: false,
+    isDefault: true,
+    notes: '',
   },
 ];
 
+const DEFAULT_PROVIDER_SETTINGS: ProviderSettings = {
+  provider: 'gemini',
+  localBaseUrl: 'http://localhost:1234/v1',
+  localModel: 'lmstudio',
+  userGeminiApiKey: '',
+  userGeminiModel: 'gemini-2.0-flash',
+};
+
+function loadProviderSettings(): ProviderSettings {
+  try {
+    const saved = localStorage.getItem('furian_provider');
+    if (saved) return { ...DEFAULT_PROVIDER_SETTINGS, ...JSON.parse(saved) };
+  } catch {}
+  return DEFAULT_PROVIDER_SETTINGS;
+}
+
+function loadAuthState(): AuthState {
+  try {
+    const saved = localStorage.getItem('furian_auth');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (parsed.token && parsed.role) {
+        return { isAuthenticated: true, role: parsed.role, token: parsed.token };
+      }
+    }
+  } catch {}
+  return { isAuthenticated: false, role: null, token: null };
+}
+
 export default function App() {
+  const [authState, setAuthState] = useState<AuthState>(loadAuthState);
   const [sessions, setSessions] = useState<TagSession[]>(DEFAULT_SESSIONS);
   const [activeSessionId, setActiveSessionId] = useState<string>('concept-tag');
   const [isChatOpen, setIsChatOpen] = useState<boolean>(false);
   const [currentModuleId, setCurrentModuleId] = useState<string>('precision-pdf');
-  const [providerSettings, setProviderSettings] = useState<ProviderSettings>({
-    provider: 'gemini',
-    localBaseUrl: 'http://localhost:1234/v1',
-    localModel: 'lmstudio',
-  });
+  const [providerSettings, setProviderSettings] = useState<ProviderSettings>(loadProviderSettings);
 
   // Lifted Workspace Document States
   const [pdfFile, setPdfFile] = useState<File | { name: string; base64: string } | null>(null);
@@ -87,10 +122,47 @@ export default function App() {
   // Trigger loading script core for PDF page renders
   const { isReady: pdfjsReady } = usePdfJs();
 
+  // Persist provider settings to localStorage
+  useEffect(() => {
+    localStorage.setItem('furian_provider', JSON.stringify(providerSettings));
+  }, [providerSettings]);
+
+  // --- Auth handlers ---
+
+  const handleLogin = (token: string, role: UserRole) => {
+    const state: AuthState = { isAuthenticated: true, role, token };
+    setAuthState(state);
+    localStorage.setItem('furian_auth', JSON.stringify({ token, role }));
+  };
+
+  const handleLogout = useCallback(() => {
+    setAuthState({ isAuthenticated: false, role: null, token: null });
+    localStorage.removeItem('furian_auth');
+  }, []);
+
+  // Authenticated fetch helper — auto-attaches bearer token and handles session expiry
+  const apiFetch = useCallback(async (url: string, options: RequestInit = {}): Promise<Response> => {
+    const headers: Record<string, string> = {
+      ...(options.headers as Record<string, string> || {}),
+    };
+    if (options.body && !headers['Content-Type']) {
+      headers['Content-Type'] = 'application/json';
+    }
+    if (authState.token) {
+      headers['Authorization'] = `Bearer ${authState.token}`;
+    }
+    const response = await fetch(url, { ...options, headers });
+    if (response.status === 401) {
+      handleLogout();
+      throw new Error('Session expired. Please log in again.');
+    }
+    return response;
+  }, [authState.token, handleLogout]);
+
   // Load and refresh list of saved histories from SQLite database
-  const fetchHistory = async () => {
+  const fetchHistory = useCallback(async () => {
     try {
-      const res = await fetch(`/api/history?_t=${Date.now()}`);
+      const res = await apiFetch(`/api/history?_t=${Date.now()}`);
       if (res.ok) {
         const data = await res.json();
         setHistoryList(data);
@@ -98,11 +170,13 @@ export default function App() {
     } catch (err) {
       console.error('Failed to parse history list:', err);
     }
-  };
+  }, [apiFetch]);
 
   useEffect(() => {
-    fetchHistory();
-  }, []);
+    if (authState.isAuthenticated) {
+      fetchHistory();
+    }
+  }, [authState.isAuthenticated, fetchHistory]);
 
   // Save current PDF layout, active tags, selection coords, and companion dialogues to SQLite base
   const handleSaveSession = async (customName: string) => {
@@ -124,14 +198,11 @@ export default function App() {
         pdf_filename: pdfFilename,
         pdf_base64: pdfBase64,
         current_page: currentPage,
-        sessions: sessions, // serializes tag arrays containing selections & chatHistories
+        sessions: sessions,
       };
 
-      const res = await fetch('/api/history', {
+      const res = await apiFetch('/api/history', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
         body: JSON.stringify(payload),
       });
 
@@ -148,18 +219,17 @@ export default function App() {
   // Restore previous classroom milestone layout
   const handleLoadHistory = async (id: string) => {
     try {
-      const res = await fetch(`/api/history/${id}?_t=${Date.now()}`);
+      const res = await apiFetch(`/api/history/${id}?_t=${Date.now()}`);
       if (!res.ok) throw new Error('Failed to retrieve matching history details.');
       const data = await res.json();
 
-      // Clear or resolve dynamic file asset
       if (data.pdf_base64) {
         setPdfFile({
           name: data.pdf_filename || 'restored_lecture.pdf',
           base64: data.pdf_base64,
         });
       } else {
-        setPdfFile(null); // Simulated playground Textbook
+        setPdfFile(null);
       }
 
       setCurrentPage(data.current_page || 1);
@@ -181,9 +251,7 @@ export default function App() {
   // Purge standard milestone
   const handleDeleteHistory = async (id: string) => {
     try {
-      const res = await fetch(`/api/history/${id}`, {
-        method: 'DELETE',
-      });
+      const res = await apiFetch(`/api/history/${id}`, { method: 'DELETE' });
       if (res.ok) {
         if (activeHistoryId === id) {
           setActiveHistoryId(null);
@@ -207,8 +275,19 @@ export default function App() {
   // Select a different tag and open context session
   const handleSelectSession = (id: string) => {
     setActiveSessionId(id);
-    // Expand the study dialog helper if they switch active sessions
     setIsChatOpen(true);
+  };
+
+  // Delete a tag session entirely; switch active to first remaining
+  const handleDeleteSession = (id: string) => {
+    setSessions((prev) => {
+      const remaining = prev.filter((s) => s.id !== id);
+      if (remaining.length === 0) return prev; // never delete the last tag
+      if (activeSessionId === id) {
+        setActiveSessionId(remaining[0].id);
+      }
+      return remaining;
+    });
   };
 
   // Reset a tag's active bounding boxes & dialogues
@@ -216,16 +295,16 @@ export default function App() {
     setSessions((oldSessions) =>
       oldSessions.map((s) => {
         if (s.id === id) {
-          return {
-            ...s,
-            regions: [],
-            chatHistory: [],
-            isProcessing: false,
-          };
+          return { ...s, regions: [], chatHistory: [], isProcessing: false };
         }
         return s;
       })
     );
+  };
+
+  // Update quick notes for a tag (persisted via sessions_json on next save)
+  const handleUpdateTagNotes = (sessionId: string, notes: string) => {
+    setSessions((prev) => prev.map((s) => (s.id === sessionId ? { ...s, notes } : s)));
   };
 
   // Create customized study tags at runtime
@@ -250,7 +329,6 @@ export default function App() {
   const handleSendMessage = async (text: string) => {
     if (!text.trim() || activeSession.isProcessing) return;
 
-    // Step 1: Update active session with the student user's new message instantly
     const userMessage: ChatMessage = {
       id: `msg-${Date.now()}-user`,
       sender: 'student',
@@ -265,7 +343,6 @@ export default function App() {
     }));
 
     try {
-      // Step 2: Compile extracted text structures
       const extractedTextBuffer = activeSession.regions
         .filter((r) => r.text && r.text.trim() !== '')
         .map(
@@ -273,14 +350,12 @@ export default function App() {
         )
         .join('\n\n');
 
-      // Step 3: Handle image merging/compositing for scanned visual options
       let compositeB64 = '';
       const selectedImages = activeSession.regions
         .map((r) => r.image)
         .filter((img): img is string => !!img);
 
       if (activeSession.selectionMode === 'image' && selectedImages.length > 0) {
-        // Run canvas vertical stitiching promise
         compositeB64 = await combineCropsIntoSingleImage(selectedImages);
       }
 
@@ -294,12 +369,8 @@ If the material is a scanned image, you will see a merged cropped image of the s
 If the material is text, you will see the extracted text from the selected regions.
 Provide rich high-quality Markdown responses with clean formatting.`;
 
-        // Local compatible OpenAI request
-        const messages: any[] = [
-          { role: 'system', content: systemInstruction }
-        ];
+        const messages: any[] = [{ role: 'system', content: systemInstruction }];
 
-        // Append historical turns
         activeSession.chatHistory.forEach((msg) => {
           messages.push({
             role: msg.sender === 'student' ? 'user' : 'assistant',
@@ -307,7 +378,6 @@ Provide rich high-quality Markdown responses with clean formatting.`;
           });
         });
 
-        // Current prompt contains selection context
         let currentPromptContent: any = text.trim();
         if (extractedTextBuffer) {
           currentPromptContent += `\n\n[STUDY MATERIAL REGIONS COVERED]:\n${extractedTextBuffer}`;
@@ -322,17 +392,12 @@ Provide rich high-quality Markdown responses with clean formatting.`;
             ]
           });
         } else {
-          messages.push({
-            role: 'user',
-            content: currentPromptContent,
-          });
+          messages.push({ role: 'user', content: currentPromptContent });
         }
 
         const localRes = await fetch(`${providerSettings.localBaseUrl}/chat/completions`, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             model: providerSettings.localModel || 'lmstudio',
             messages,
@@ -348,25 +413,26 @@ Provide rich high-quality Markdown responses with clean formatting.`;
         const responseData = await localRes.json();
         responseText = responseData.choices?.[0]?.message?.content || 'Empty response returned from local model.';
       } else {
-        // Base query payload formatting
         const chatHistoryProxySchema = activeSession.chatHistory.map((m) => ({
           role: m.sender === 'student' ? 'user' : 'model',
           text: m.text,
         }));
 
-        // Post parameters to local server proxy
-        const payload = {
+        const payload: Record<string, any> = {
           prompt: text.trim(),
           extractedText: extractedTextBuffer || undefined,
           image: compositeB64 || undefined,
           history: chatHistoryProxySchema,
         };
 
-        const res = await fetch('/api/gemini/chat', {
+        // User role: attach their own API key and selected model
+        if (authState.role === 'user') {
+          payload.userApiKey = providerSettings.userGeminiApiKey;
+          payload.userModel = providerSettings.userGeminiModel;
+        }
+
+        const res = await apiFetch('/api/gemini/chat', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
           body: JSON.stringify(payload),
         });
 
@@ -379,7 +445,6 @@ Provide rich high-quality Markdown responses with clean formatting.`;
         responseText = responseData.text || 'Dialogue returned empty response context.';
       }
 
-      // Step 4: Populate AI answers in the history stream
       const modelMessage: ChatMessage = {
         id: `msg-${Date.now()}-model`,
         sender: 'gemini',
@@ -394,7 +459,7 @@ Provide rich high-quality Markdown responses with clean formatting.`;
       }));
     } catch (err: any) {
       console.error('Study Companion execution failed: ', err);
-      
+
       const errorMessage: ChatMessage = {
         id: `msg-${Date.now()}-error`,
         sender: 'gemini',
@@ -411,11 +476,13 @@ Provide rich high-quality Markdown responses with clean formatting.`;
   };
 
   const handleClearHistory = () => {
-    updateActiveSession((old) => ({
-      ...old,
-      chatHistory: [],
-    }));
+    updateActiveSession((old) => ({ ...old, chatHistory: [] }));
   };
+
+  // Show login page if not authenticated
+  if (!authState.isAuthenticated) {
+    return <LoginPage onLogin={handleLogin} />;
+  }
 
   return (
     <div id="furian-root-layout" className="w-screen h-screen flex bg-zinc-100 overflow-hidden select-none font-sans">
@@ -424,6 +491,8 @@ Provide rich high-quality Markdown responses with clean formatting.`;
         currentModuleId={currentModuleId}
         providerSettings={providerSettings}
         onChangeProviderSettings={setProviderSettings}
+        userRole={authState.role}
+        onLogout={handleLogout}
       />
 
       {/* 2. Left Double Column: Tagging & Session manager paired with SQLite interaction logs */}
@@ -432,7 +501,9 @@ Provide rich high-quality Markdown responses with clean formatting.`;
         activeSessionId={activeSessionId}
         onSelectSession={handleSelectSession}
         onResetSession={handleResetSession}
+        onDeleteSession={handleDeleteSession}
         onCreateSession={handleCreateSession}
+        onUpdateTagNotes={handleUpdateTagNotes}
         historyList={historyList}
         activeHistoryId={activeHistoryId}
         onSelectHistory={handleLoadHistory}
