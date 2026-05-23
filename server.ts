@@ -287,27 +287,24 @@ app.delete('/api/history/:id', requireAuth, (req, res) => {
   });
 });
 
-// Setup fallback endpoints and Vite middle-tier
+// Vercel serverless handler
+export default app;
+
+// Local development: start Express server directly
+if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
+  initServer().catch((err) => {
+    console.error('Fatal initialization error in Furian server boot:', err);
+  });
+}
+
 async function initServer() {
-  if (process.env.NODE_ENV !== 'production') {
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: 'spa',
-    });
-    app.use(vite.middlewares);
-  } else {
-    const distPath = path.join(process.cwd(), 'dist');
-    app.use(express.static(distPath));
-    app.get('*', (req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
-    });
-  }
+  const vite = await createViteServer({
+    server: { middlewareMode: true },
+    appType: 'spa',
+  });
+  app.use(vite.middlewares);
 
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`Furian - Education server successfully active at http://0.0.0.0:${PORT}`);
   });
 }
-
-initServer().catch((err) => {
-  console.error('Fatal initialization error in Furian server boot:', err);
-});
