@@ -288,10 +288,12 @@ app.delete('/api/history/:id', requireAuth, (req, res) => {
 });
 
 // Vercel serverless handler
-export default app;
+export default function handler(req: any, res: any) {
+  return app.handle(req, res);
+}
 
 // Local development: start Express server directly
-if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
+if (!process.env.VERCEL) {
   initServer().catch((err) => {
     console.error('Fatal initialization error in Furian server boot:', err);
   });
